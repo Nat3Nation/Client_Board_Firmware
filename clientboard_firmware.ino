@@ -3,6 +3,8 @@
 //#include <soc/soc.h>
 #include <Wire.h>
 #include <MCP342x.h>
+#define TIMER_BASE_CLK    (APB_CLK_FREQ)  // Add this before include
+#include <ESP32TimerInterrupt.h>
 
 #include "BluetoothSerial.h" //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
 #include "Utils.h"
@@ -19,29 +21,52 @@ MCP342x adc = MCP342x(address);
 
 BluetoothSerial SerialBT; //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
 
-//float V_fsp = 0;
-//unsigned long lastTime = 0;
-
-Connection conn("http://192.168.1.34:8000/boards/authenticate"); 
 //int json_state = 0;
 
 //VoltageRMSRegs RMS_voltage; 
-//CurrentRMSRegs RMS_current; 
+//CurrentRMSRegs RMS_current;
 
+ESP32Timer ITimer0(0); // Timer 0
+ESP32Timer ITimer1(1); // Timer 1
 
-void IRAM_ATTR timerISR();
+// Timer 1 ISR
+bool IRAM_ATTR adc_read(void* timer_arg){
+  long voltage = 0;
+  long current = 0;
+  MCP342x::Config status;
+  // Initiate a conversion; convertAndRead() will wait until it can be read
+  uint8_t err1 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
+		   MCP342x::resolution16, MCP342x::gain1,
+		   1000000, voltage, status);
+  uint8_t err2 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
+		   MCP342x::resolution16, MCP342x::gain1,
+		   1000000, current, status);
 
-/**
-void ADE9000_setup(uint32_t SPI_speed) {
-  SPI.begin(26,25,33);    //Initiate SPI port 26,25,33
-  SPI.beginTransaction(SPISettings(SPI_speed,MSBFIRST,SPI_MODE0));    //Setup SPI parameters
-  ade_0.SPI_Init(SPI_speed, PCA_PIN_P10, LOW); // for ADE9000 id 0, the enable pin should be LOW
-  ade_1.SPI_Init(SPI_speed, PCA_PIN_P10, HIGH); // for ADE9000 id 0, the enable pin should be HIGH
-  ade_0.begin(); //set up the chip and get it running
-  ade_1.begin();
-  delay(200); //give some time for everything to come up
+  if (err1|err2) {
+    Serial.println("Convert error");
+  }
+  else {
+    SerialBT.print("{");
+    SerialBT.print("voltage:");
+    SerialBT.print(voltage);
+    SerialBT.print(",");
+    SerialBT.print("current:");
+    SerialBT.print(current);
+    SerialBT.println("}");
+  }
 }
-**/
+
+// Timer 2 ISR
+bool IRAM_ATTR BT_command_rc(void* timer_arg) {
+  //Actuate Relay when Command recieved - Expand to include sending data back
+  if(SerialBT.available()){
+    char command = SerialBT.read();
+    Serial.print("Actuate Command Received: ");
+    Serial.print(command);
+    Serial.print("\n");
+    Actuate(command);
+  }
+}
 
 void Actuate(char command){ //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
   //Switch relay based on command recieved from user
@@ -68,15 +93,11 @@ void setup()
 
   // Connect to the server
   esp_log_level_set("*", ESP_LOG_NONE);
-  Serial.println();
-  Serial.println("----------- Step 1: WiFi Connection -----------\n");
-  conn.initWiFi();
-  conn.initBackend();
   delay(100);
 
   // Initiate the expander
-  expander.begin();
-  delay(100);
+  //expander.begin();
+  //delay(100);
 
     // Reset devices
   MCP342x::generalCallReset();
@@ -102,45 +123,14 @@ void setup()
     Serial.println("Bluetooth initialized");
   }
 
+  // Start timer 0
+  ITimer0.setFrequency(3.0, adc_read);
+  // Start timer 1
+  ITimer1.setFrequency(0.5, BT_command_rc);
+
 }
 
 void loop()
 {
-  conn.loop();
-  delay(100);
-  unsigned long currentTime = millis();
-  if (currentTime - lastTime >= 3000) {
-
-    long voltage = 0;
-    long current = 0;
-    MCP342x::Config status;
-    // Initiate a conversion; convertAndRead() will wait until it can be read
-    uint8_t err1 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
-				   MCP342x::resolution16, MCP342x::gain1,
-				   1000000, voltage, status);
-
-    uint8_t err2 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
-				   MCP342x::resolution16, MCP342x::gain1,
-				   1000000, current, status);
-
-    if (err) {
-      Serial.print("Convert error: ");
-      Serial.println(err);
-    }
-    else {
-      Serial.print("Value: ");
-      Serial.println(value);
-    }
-    lastTime = currentTime;
-  }
-  delay(100);
-
-  //Actuate Relay when Command recieved - Expand to include sending data back
-  while(SerialBT.available()){
-    char command = SerialBT.read();
-    Serial.println(command);
-    Actuate(command);
-  }
-  delay(50);
-
+  while(1){};
 }
