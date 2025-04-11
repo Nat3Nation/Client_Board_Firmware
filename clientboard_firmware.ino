@@ -48,10 +48,8 @@ bool IRAM_ATTR adc_read(void* timer_arg){
   }
   else {
     SerialBT.print("{");
-    SerialBT.print("voltage:");
     SerialBT.print(voltage);
     SerialBT.print(",");
-    SerialBT.print("current:");
     SerialBT.print(current);
     SerialBT.println("}");
     return true;
