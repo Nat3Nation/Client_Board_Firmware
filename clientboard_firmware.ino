@@ -44,6 +44,7 @@ bool IRAM_ATTR adc_read(void* timer_arg){
 
   if (err1|err2) {
     Serial.println("Convert error");
+    return false;
   }
   else {
     SerialBT.print("{");
@@ -53,6 +54,7 @@ bool IRAM_ATTR adc_read(void* timer_arg){
     SerialBT.print("current:");
     SerialBT.print(current);
     SerialBT.println("}");
+    return true;
   }
 }
 
@@ -65,7 +67,9 @@ bool IRAM_ATTR BT_command_rc(void* timer_arg) {
     Serial.print(command);
     Serial.print("\n");
     Actuate(command);
+    return true;
   }
+  return false;
 }
 
 void Actuate(char command){ //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
@@ -117,7 +121,7 @@ void setup()
   digitalWrite(RELAY_PIN, LOW);
 
   // Initialize Bluetooth for Commands/Data Transfer
-  if(!SerialBT.begin("ESP32")){ //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
+  if(!SerialBT.begin("Client_Board")){ //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
     Serial.println("An error occurred initializing Bluetooth");
   }else{
     Serial.println("Bluetooth initialized");
