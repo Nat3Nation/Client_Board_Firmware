@@ -33,44 +33,19 @@ String last_cmd, current_cmd;
 ESP32Timer ITimer0(0); // Timer 0
 ESP32Timer ITimer1(1); // Timer 1
 
+bool read_ADC = false;
+bool command_flag = false;
+
 // Timer 1 ISR
 bool IRAM_ATTR adc_read(void* timer_arg){
-  long energy_values[2];
-  MCP342x::Config status;
-  // Initiate a conversion; convertAndRead() will wait until it can be read
-  uint8_t err1 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
-		   MCP342x::resolution16, MCP342x::gain1,
-		   1000000, energy_values[0], status);
-  uint8_t err2 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
-		   MCP342x::resolution16, MCP342x::gain1,
-		   1000000, energy_values[1], status);
-
-  if (err1|err2) {
-    Serial.println("Convert error");
-    return false;
-  }
-  else {
-    uint8_t *data = (uint8_t *)energy_values;
-    //check the length of the data pointer
-    dCharacteristic->setValue(data, 8);
-    return true;
-  }
+  read_ADC = true;
+  return read_ADC;
 }
 
 // Timer 2 ISR
 bool IRAM_ATTR BT_command_rc(void* timer_arg) {
-  //Actuate Relay when Command recieved - Expand to include sending data back
-  current_cmd = cCharacteristic->getValue().c_str();
-  if(current_cmd != last_cmd){
-    char command = current_cmd[0];
-    Serial.print("Actuate Command Received: ");
-    Serial.print(command);
-    Serial.print("\n");
-    Actuate(command);
-    return true;
-  }
-  last_cmd = cCharacteristic->getValue().c_str();
-  return false;
+  command_flag = true;
+  return command_flag;
 }
 
 void Actuate(char command){ //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
@@ -113,8 +88,8 @@ void setup()
   if (!Wire.available()) {
     Serial.print("No device found at address ");
     Serial.println(address, HEX);
-    while (1)
-      ;
+    //while (1)
+    //  ;
   }
 
   // Initialize Relay Switching Pin
@@ -148,7 +123,7 @@ void setup()
   BLEDevice::startAdvertising();
 
   // Start timer 0
-  ITimer0.setFrequency(3.0, adc_read);
+  //ITimer0.setFrequency(3.0, adc_read);
   // Start timer 1
   ITimer1.setFrequency(0.5, BT_command_rc);
 
@@ -156,5 +131,44 @@ void setup()
 
 void loop()
 {
-  while(1){};
+  if(read_ADC) {
+    long energy_values[2];
+    MCP342x::Config status;
+    // Initiate a conversion; convertAndRead() will wait until it can be read
+    uint8_t err1 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
+        MCP342x::resolution16, MCP342x::gain1,
+        1000000, energy_values[0], status);
+    uint8_t err2 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
+        MCP342x::resolution16, MCP342x::gain1,
+        1000000, energy_values[1], status);
+
+    if (err1|err2) {
+      Serial.println("Convert error");
+    }
+    else {
+      uint8_t *data = (uint8_t *)energy_values;
+      //check the length of the data pointer
+      dCharacteristic->setValue(data, 8);
+      //print out data to Serial monitor
+      Serial.println(energy_values[0]);
+      Serial.println(energy_values[1]);
+    }
+
+    read_ADC = false;
+  }
+
+  if(command_flag) {
+    //Actuate Relay when Command recieved - Expand to include sending data back
+    current_cmd = cCharacteristic->getValue().c_str();
+    if(current_cmd != last_cmd){
+      char command = current_cmd[0];
+      Serial.print("Actuate Command Received: ");
+      Serial.print(command);
+      Serial.print("\n");
+      Actuate(command);
+    }
+    last_cmd = cCharacteristic->getValue().c_str();
+
+    command_flag = false;
+  }
 }
