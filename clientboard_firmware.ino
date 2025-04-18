@@ -11,6 +11,8 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 
+#define LED1 32
+
 #define I2C_SDA 36
 #define I2C_SCL 33
 
@@ -33,27 +35,53 @@ String last_cmd, current_cmd;
 ESP32Timer ITimer0(0); // Timer 0
 ESP32Timer ITimer1(1); // Timer 1
 
-bool read_ADC = false;
-bool command_flag = false;
+bool data_flag = false;
 
-// Timer 1 ISR
-bool IRAM_ATTR adc_read(void* timer_arg){
-  read_ADC = true;
-  return read_ADC;
-}
-
-// Timer 2 ISR
-bool IRAM_ATTR BT_command_rc(void* timer_arg) {
-  command_flag = true;
-  return command_flag;
-}
+uint8_t dummy_value = 0;
 
 void Actuate(char command){ //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
   //Switch relay based on command recieved from user
   if (command == '1'){
     digitalWrite(RELAY_PIN, HIGH);
+    led_Flash(3, 100);
   }else{
     digitalWrite(RELAY_PIN, LOW);
+    led_Flash(2, 500);
+  }
+}
+
+// Callback when client writes
+class WriteCallback: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pChar) {
+    std::string value = pChar->getValue();
+    Serial.printf("[Server] Received write: %s\n", value.c_str());
+    cCharacteristic->indicate();  // Send indication to client
+
+    //Actuate Relay when Command recieved - Expand to include sending data back
+    char command = value[0];
+    Serial.print("Actuate Command Received: ");
+    Serial.print(command);
+    Serial.print("\n");
+    Actuate(command);
+  }
+};
+
+// Timer 2 ISR
+bool IRAM_ATTR read_ADC(void* timer_arg) {
+  data_flag = true;
+  return data_flag;
+}
+
+void led_Flash(uint16_t flashes, uint16_t delaymS)
+{
+  uint16_t index;
+
+  for (index = 1; index <= flashes; index++)
+  {
+    digitalWrite(LED1, HIGH);
+    delay(delaymS);
+    digitalWrite(LED1, LOW);
+    delay(delaymS);
   }
 }
 
@@ -66,10 +94,12 @@ void setup()
   Wire.begin(I2C_SDA, I2C_SCL, 100000);
 
   // Wait for the user to press start
+  /*
   Serial.println(" --- Energy Prediction and Monitoring System --- \n");
   Serial.println("Please press enter to continue...");
   while(Serial.available() == 0);
   flushInputBuffer();
+  */
 
   // Connect to the server
   esp_log_level_set("*", ESP_LOG_NONE);
@@ -103,16 +133,20 @@ void setup()
   cCharacteristic = pService->createCharacteristic(
                                 COMMAND_UUID,
                                 BLECharacteristic::PROPERTY_READ |
-                                BLECharacteristic::PROPERTY_WRITE
+                                BLECharacteristic::PROPERTY_WRITE |
+                                BLECharacteristic::PROPERTY_NOTIFY
                               );
   dCharacteristic = pService->createCharacteristic(
                                 DATA_UUID,
                                 BLECharacteristic::PROPERTY_READ |
-                                BLECharacteristic::PROPERTY_WRITE
+                                BLECharacteristic::PROPERTY_WRITE |
+                                BLECharacteristic::PROPERTY_NOTIFY
                               );
   cCharacteristic->setValue("0");
+  cCharacteristic->setCallbacks(new WriteCallback());
   last_cmd = "0";
   dCharacteristic->setValue("None");
+  
   pService->start();
   // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
@@ -122,16 +156,14 @@ void setup()
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
 
-  // Start timer 0
-  //ITimer0.setFrequency(3.0, adc_read);
   // Start timer 1
-  ITimer1.setFrequency(0.5, BT_command_rc);
-
+  ITimer1.setFrequency(0.5, read_ADC);
 }
 
 void loop()
 {
-  if(read_ADC) {
+  if(data_flag) {
+    /*
     long energy_values[2];
     MCP342x::Config status;
     // Initiate a conversion; convertAndRead() will wait until it can be read
@@ -152,23 +184,15 @@ void loop()
       //print out data to Serial monitor
       Serial.println(energy_values[0]);
       Serial.println(energy_values[1]);
+      
     }
+    */
+    //For testing
+    dummy_value++;
+    dCharacteristic->setValue(&dummy_value, 1);
+    dCharacteristic->notify();
+    Serial.println(dummy_value);
 
-    read_ADC = false;
-  }
-
-  if(command_flag) {
-    //Actuate Relay when Command recieved - Expand to include sending data back
-    current_cmd = cCharacteristic->getValue().c_str();
-    if(current_cmd != last_cmd){
-      char command = current_cmd[0];
-      Serial.print("Actuate Command Received: ");
-      Serial.print(command);
-      Serial.print("\n");
-      Actuate(command);
-    }
-    last_cmd = cCharacteristic->getValue().c_str();
-
-    command_flag = false;
+    data_flag = false;
   }
 }
