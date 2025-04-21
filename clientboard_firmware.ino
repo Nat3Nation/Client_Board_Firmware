@@ -3,15 +3,19 @@
 //#include <soc/soc.h>
 #include <Wire.h>
 #include <MCP342x.h>
-#define TIMER_BASE_CLK    (APB_CLK_FREQ)  // Add this before include
-#include <ESP32TimerInterrupt.h>
+//#include <ESP32TimerInterrupt.h>
 #include "Utils.h"
 #include "esp_log.h"
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
 
-#define LED1 32
+#include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+TaskHandle_t TaskBT_Handler;
+TaskHandle_t TaskADC_Handler;
 
 #define I2C_SDA 36
 #define I2C_SCL 33
@@ -30,58 +34,69 @@ BLECharacteristic *cCharacteristic;
 BLECharacteristic *dCharacteristic;
 String last_cmd, current_cmd;
 
+
+
 //int json_state = 0;
 
-ESP32Timer ITimer0(0); // Timer 0
-ESP32Timer ITimer1(1); // Timer 1
+//ESP32Timer ITimer0(0); // Timer 0
+//ESP32Timer ITimer1(1); // Timer 1
 
-bool data_flag = false;
+void adc_read(void* pvParameters){
+  (void) pvParameters;
 
-uint8_t dummy_value = 0;
+  for (;;){
+    long energy_values[2];
+    MCP342x::Config status;
+    // Initiate a conversion; convertAndRead() will wait until it can be read
+    uint8_t err1 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
+        MCP342x::resolution16, MCP342x::gain1,
+        1000000, energy_values[0], status);
+    uint8_t err2 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
+        MCP342x::resolution16, MCP342x::gain1,
+        1000000, energy_values[1], status);
+    if (err1|err2) {
+      Serial.println("Convert error");
+      //return false;
+    }
+    else {
+      uint8_t *data = (uint8_t *)energy_values;
+      //check the length of the data pointer
+      dCharacteristic->setValue(data, 8);
+      //return true;
+    }
+    // wait for 3 seconds
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
+  }
+}
+
+// Timer 2 ISR
+void BT_command_rc(void *pvParameters) {
+  (void) pvParameters;
+
+  for (;;){
+    //Actuate Relay when Command recieved - Expand to include sending data back
+    current_cmd = cCharacteristic->getValue().c_str();
+    if(current_cmd != last_cmd){
+      char command = current_cmd[0];
+      Serial.print("Actuate Command Received: ");
+      Serial.print(command);
+      Serial.print("\n");
+      Actuate(command);
+      //return true;
+    }
+    last_cmd = cCharacteristic->getValue().c_str();
+    //return false;
+    // wait for 0.5 seconds
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+}
 
 void Actuate(char command){ //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
   //Switch relay based on command recieved from user
   if (command == '1'){
     digitalWrite(RELAY_PIN, HIGH);
-    led_Flash(3, 100);
   }else{
     digitalWrite(RELAY_PIN, LOW);
-    led_Flash(2, 500);
-  }
-}
-
-// Callback when client writes
-class WriteCallback: public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pChar) {
-    std::string value = pChar->getValue();
-    Serial.printf("[Server] Received write: %s\n", value.c_str());
-    cCharacteristic->indicate();  // Send indication to client
-
-    //Actuate Relay when Command recieved - Expand to include sending data back
-    char command = value[0];
-    Serial.print("Actuate Command Received: ");
-    Serial.print(command);
-    Serial.print("\n");
-    Actuate(command);
-  }
-};
-
-// Timer 2 ISR
-bool IRAM_ATTR read_ADC(void* timer_arg) {
-  data_flag = true;
-  return data_flag;
-}
-
-void led_Flash(uint16_t flashes, uint16_t delaymS)
-{
-  uint16_t index;
-
-  for (index = 1; index <= flashes; index++)
-  {
-    digitalWrite(LED1, HIGH);
-    delay(delaymS);
-    digitalWrite(LED1, LOW);
-    delay(delaymS);
   }
 }
 
@@ -94,12 +109,10 @@ void setup()
   Wire.begin(I2C_SDA, I2C_SCL, 100000);
 
   // Wait for the user to press start
-  /*
   Serial.println(" --- Energy Prediction and Monitoring System --- \n");
   Serial.println("Please press enter to continue...");
   while(Serial.available() == 0);
   flushInputBuffer();
-  */
 
   // Connect to the server
   esp_log_level_set("*", ESP_LOG_NONE);
@@ -118,8 +131,8 @@ void setup()
   if (!Wire.available()) {
     Serial.print("No device found at address ");
     Serial.println(address, HEX);
-    //while (1)
-    //  ;
+    while (1)
+      ;
   }
 
   // Initialize Relay Switching Pin
@@ -133,20 +146,16 @@ void setup()
   cCharacteristic = pService->createCharacteristic(
                                 COMMAND_UUID,
                                 BLECharacteristic::PROPERTY_READ |
-                                BLECharacteristic::PROPERTY_WRITE |
-                                BLECharacteristic::PROPERTY_NOTIFY
+                                BLECharacteristic::PROPERTY_WRITE
                               );
   dCharacteristic = pService->createCharacteristic(
                                 DATA_UUID,
                                 BLECharacteristic::PROPERTY_READ |
-                                BLECharacteristic::PROPERTY_WRITE |
-                                BLECharacteristic::PROPERTY_NOTIFY
+                                BLECharacteristic::PROPERTY_WRITE
                               );
   cCharacteristic->setValue("0");
-  cCharacteristic->setCallbacks(new WriteCallback());
   last_cmd = "0";
   dCharacteristic->setValue("None");
-  
   pService->start();
   // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
@@ -155,44 +164,23 @@ void setup()
   pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
-
-  // Start timer 1
-  ITimer1.setFrequency(0.5, read_ADC);
+  
+  xTaskCreate(adc_read, // Task function
+              "adc_read", // Task name
+              128, // Stack size 
+              NULL, 
+              0, // Priority
+              &TaskADC_Handler );
+  xTaskCreate(BT_command_rc, // Task function
+              "BT_command_rc", // Task name
+              128, // Stack size 
+              NULL, 
+              0, // Priority
+              &TaskBT_Handler );
+  vTaskDelay(10);// allow to initialize.
 }
+
 
 void loop()
 {
-  if(data_flag) {
-    /*
-    long energy_values[2];
-    MCP342x::Config status;
-    // Initiate a conversion; convertAndRead() will wait until it can be read
-    uint8_t err1 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
-        MCP342x::resolution16, MCP342x::gain1,
-        1000000, energy_values[0], status);
-    uint8_t err2 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
-        MCP342x::resolution16, MCP342x::gain1,
-        1000000, energy_values[1], status);
-
-    if (err1|err2) {
-      Serial.println("Convert error");
-    }
-    else {
-      uint8_t *data = (uint8_t *)energy_values;
-      //check the length of the data pointer
-      dCharacteristic->setValue(data, 8);
-      //print out data to Serial monitor
-      Serial.println(energy_values[0]);
-      Serial.println(energy_values[1]);
-      
-    }
-    */
-    //For testing
-    dummy_value++;
-    dCharacteristic->setValue(&dummy_value, 1);
-    dCharacteristic->notify();
-    Serial.println(dummy_value);
-
-    data_flag = false;
-  }
 }
