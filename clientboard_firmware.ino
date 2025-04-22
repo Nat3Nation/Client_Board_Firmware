@@ -157,7 +157,7 @@ void setup()
   BLEDevice::startAdvertising();
 
   // Start timer 1
-  ITimer1.setFrequency(0.5, read_ADC);
+  ITimer1.setFrequency(0.05, read_ADC);
 }
 
 void loop()
