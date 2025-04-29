@@ -7,17 +7,22 @@
 #include <WiFi.h>
 #include "time.h"
 
+#define SCK  14
+#define MISO  12
+#define MOSI  13
+#define CS  15
+
 // Replace with your network credentials
-const char* ssid     = "REPLACE_WITH_YOUR_SSID";
-const char* password = "REPLACE_WITH_YOUR_PASSWORD";
+const char* ssid     = "";
+const char* password = "";
 
 // Timer variables
 int lastDay = 0;
+int lastMinute = 0;
 unsigned long lastTime = 0;
 unsigned long timerDelay = 30000;
 
 String filePath = "";
-
 
 // NTP server to request epoch time
 const char* ntpServer = "pool.ntp.org";
@@ -30,7 +35,7 @@ unsigned long getTime() {
   time_t now;
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
-    //Serial.println("Failed to obtain time");
+    Serial.println("Failed to obtain time");
     return(0);
   }
   time(&now);
@@ -42,13 +47,14 @@ String fileName(struct tm timeinfo){
   char timeMonth[10];
   char timeYear[5];
   char timeDay[3];
-  char path[50];
+  char timeMinute[3];
 
   strftime(timeMonth,10, "%B", &timeinfo);
   strftime(timeYear,5, "%Y", &timeinfo);
   strftime(timeDay,3, "%d", &timeinfo);
+  strftime(timeMinute,3, "%M", &timeinfo);
 
-  return "/SMESdata_" + String(timeDay) + "_" + String(timeMonth) + "_" + String(timeYear) + ".txt";
+  return "/SMESdata_minute" + String(timeMinute)+ "_" + String(timeDay) + "" + String(timeMonth) + "" + String(timeYear) + ".txt";
 }
 
 // Initialize WiFi
@@ -65,7 +71,8 @@ void initWiFi() {
 
 // Initialize SD card
 void initSDCard(){
-   if (!SD.begin()) {
+  SPI.begin(SCK, MISO, MOSI, CS);
+  if (!SD.begin(CS)){
     Serial.println("Card Mount Failed");
     return;
   }
@@ -125,9 +132,10 @@ void appendFile(fs::FS &fs, const char * path, const char * message) {
 
 void setup() {
   Serial.begin(115200);
-  
   initWiFi();
+  
   initSDCard();
+
   configTzTime("EST5EDT,M3.2.0,M11.1.0", ntpServer);
   
   // If the data.txt file doesn't exist
@@ -157,13 +165,22 @@ void loop() {
     struct tm *timeinfo;
     time_t rawtime = epochTime;
     timeinfo = localtime(&rawtime);  // convert to calendar time
-    int dayOfMonth = timeinfo->tm_mday;
+    //int dayOfMonth = timeinfo->tm_mday;
+    int hourMinute = timeinfo->tm_min;
+    Serial.println(hourMinute);
 
+  if (hourMinute!=lastMinute){
+    filePath = fileName(*timeinfo);
+    lastDay = hourMinute;
+  }
+  
+
+   /* real code
     if (dayOfMonth!=lastDay){
       filePath = fileName(*timeinfo);
       lastDay = dayOfMonth;
     }
-    
+    */
   
     //Concatenate all info separated by commas
     String dataMessage = String(epochTime) + "\r\n";
