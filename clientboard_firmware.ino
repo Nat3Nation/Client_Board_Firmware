@@ -39,6 +39,8 @@ bool data_flag = false;
 
 uint8_t dummy_value = 0;
 
+std::string energy_values = "987654321,120.0,0.0,0.0,10.0,0.0,0.0,0.0,-120.0,120.0,0.0,-120.0,120.0,1200.0,1200.0,0.0,Nate's House,Client";
+
 void Actuate(char command){ //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
   //Switch relay based on command recieved from user
   if (command == '1'){
@@ -188,10 +190,15 @@ void loop()
     }
     */
     //For testing
-    dummy_value++;
-    dCharacteristic->setValue(&dummy_value, 1);
+    //dummy_value++;
+    //dCharacteristic->setValue(&dummy_value, 1);
+    //dCharacteristic->notify();
+    //Serial.println(dummy_value)
+    
+    Serial.println("Sending Energy Data to Mainboard...");
+    dCharacteristic->setValue(energy_values);
     dCharacteristic->notify();
-    Serial.println(dummy_value);
+    //Serial.println(energy_values);
 
     data_flag = false;
   }
