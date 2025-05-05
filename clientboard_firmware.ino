@@ -28,7 +28,7 @@ MCP342x adc = MCP342x(address);
 
 BLECharacteristic *cCharacteristic;
 BLECharacteristic *dCharacteristic;
-String last_cmd, current_cmd;
+std::string last_cmd, current_cmd;
 
 //int json_state = 0;
 
@@ -38,8 +38,6 @@ ESP32Timer ITimer1(1); // Timer 1
 bool data_flag = false;
 
 uint8_t dummy_value = 0;
-
-std::string energy_values = "987654321,120.0,0.0,0.0,10.0,0.0,0.0,0.0,-120.0,120.0,0.0,-120.0,120.0,1200.0,1200.0,0.0,Nate's House,Client";
 
 void Actuate(char command){ //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
   //Switch relay based on command recieved from user
@@ -55,7 +53,7 @@ void Actuate(char command){ //https://techtutorialsx.com/2018/04/27/esp32-arduin
 // Callback when client writes
 class WriteCallback: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pChar) {
-    std::string value = pChar->getValue();
+    std::string value = pChar->getValue(); //Changed to std::string Value
     Serial.printf("[Server] Received write: %s\n", value.c_str());
     cCharacteristic->indicate();  // Send indication to client
 
@@ -93,7 +91,7 @@ void setup()
   Serial.begin(115200);
   delay(100);
 
-  Wire.begin(I2C_SDA, I2C_SCL, 100000);
+  //Wire.begin(I2C_SDA, I2C_SCL, 100000);
 
   // Wait for the user to press start
   /*
@@ -110,7 +108,7 @@ void setup()
   // Initiate the expander
   //expander.begin();
   //delay(100);
-
+  /*
     // Reset devices
   MCP342x::generalCallReset();
   delay(1); // MC342x needs 300us to settle, wait 1ms
@@ -123,7 +121,7 @@ void setup()
     //while (1)
     //  ;
   }
-
+  */
   // Initialize Relay Switching Pin
   pinMode(RELAY_PIN, OUTPUT); //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
   digitalWrite(RELAY_PIN, LOW);
@@ -159,14 +157,16 @@ void setup()
   BLEDevice::startAdvertising();
 
   // Start timer 1
-  ITimer1.setFrequency(0.05, read_ADC);
+  ITimer1.setFrequency(0.2, read_ADC);
 }
 
+
+std::string energy_values = "Board-CB1,120.0,10.0";
 void loop()
 {
   if(data_flag) {
+    Serial.println("Data Flag Set...");
     /*
-    long energy_values[2];
     MCP342x::Config status;
     // Initiate a conversion; convertAndRead() will wait until it can be read
     uint8_t err1 = adc.convertAndRead(MCP342x::channel1, MCP342x::oneShot,
@@ -179,26 +179,20 @@ void loop()
     if (err1|err2) {
       Serial.println("Convert error");
     }
-    else {
-      uint8_t *data = (uint8_t *)energy_values;
-      //check the length of the data pointer
-      dCharacteristic->setValue(data, 8);
-      //print out data to Serial monitor
-      Serial.println(energy_values[0]);
-      Serial.println(energy_values[1]);
-      
-    }
     */
+    //uint8_t *data = (uint8_t *)energy_values.c_str();
+    //check the length of the data pointer
+    Serial.println("Sending Energy Data to Mainboard...");
+    dCharacteristic->setValue(energy_values);
+    //print out data to Serial monitor
+    //Serial.println(values[0]);
+    //Serial.println(values[1]);
+  
     //For testing
     //dummy_value++;
     //dCharacteristic->setValue(&dummy_value, 1);
-    //dCharacteristic->notify();
-    //Serial.println(dummy_value)
-    
-    Serial.println("Sending Energy Data to Mainboard...");
-    dCharacteristic->setValue(energy_values);
     dCharacteristic->notify();
-    //Serial.println(energy_values);
+    Serial.println(energy_values.c_str());
 
     data_flag = false;
   }
