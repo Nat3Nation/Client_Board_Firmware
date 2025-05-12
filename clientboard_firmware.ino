@@ -17,10 +17,13 @@
 #define I2C_SCL 33
 
 #define RELAY_PIN 27
+#define ADC_PIN 6
+
+String adc;
 
 // 0x68 is the default address for all MCP342x devices
-uint8_t address = 0x6E;
-MCP342x adc = MCP342x(address);
+//uint8_t address = 0x6E;
+//MCP342x adc = MCP342x(address);
 
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define COMMAND_UUID        "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -161,7 +164,7 @@ void setup()
 }
 
 
-std::string energy_values = "Board-CB1,120.0,10.0";
+//std::string energy_values = "Board-CB1,120.0,10.0";
 void loop()
 {
   if(data_flag) {
@@ -182,8 +185,10 @@ void loop()
     */
     //uint8_t *data = (uint8_t *)energy_values.c_str();
     //check the length of the data pointer
+    int ADC_val = analogRead(ADC_PIN);
+	  sprintf(adc, "Board-CB1,%s,1.0", std::to_string(ADC_val));
     Serial.println("Sending Energy Data to Mainboard...");
-    dCharacteristic->setValue(energy_values);
+    dCharacteristic->setValue(adc);
     //print out data to Serial monitor
     //Serial.println(values[0]);
     //Serial.println(values[1]);
@@ -192,7 +197,7 @@ void loop()
     //dummy_value++;
     //dCharacteristic->setValue(&dummy_value, 1);
     dCharacteristic->notify();
-    Serial.println(energy_values.c_str());
+    Serial.println(adc);
 
     data_flag = false;
   }
