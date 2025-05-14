@@ -1,0 +1,119 @@
+Testing different SPI SS pins for reading ADE9000:
+
+right input. left input.
+
+Pin 0: ok. reads 0
+
+Pin 1: ok. reads 0, the firmware stops working
+
+Pin 2: ok. reads 0
+
+Pin 3: ok. reads 0
+
+Pin 4: ok. reads 0
+
+Pin 5: ok. reads 0
+
+Pin 6: SPI error
+
+Pin 7: SPI error
+
+Pin 8: SPI error
+
+Pin 9: SPI error
+
+Pin 10: SPI error
+
+Pin 11: SPI error
+
+Pin 12: ok. reads 0
+
+Pin 13: ok. reads 0
+
+Pin 14: ok. reads 0
+
+Pin 15: ok. reads 0
+
+Pin 16: ok. reads 0
+
+Pin 17: ok. reads 0
+
+Pin 18: ok. reads 0
+
+Pin 19: ok. reads 0
+
+Pin 20: ok. reads 0
+
+Pin 21: ok. reads 0
+
+Pin 22: ok. reads 0
+
+Pin 23: ok. reads 0
+
+Pin 24: GPIO num error
+
+Pin 25: ok. reads 0
+
+Pin 26: ok. reads 0
+
+Pin 27: ok. reads 0
+
+Pin 28: GPIO num error
+
+Pin 29: GPIO num error
+
+Pin 30: GPIO num error
+
+
+
+2IC Stuff:
+14:57:22.895 -> Found device at address: 0x00
+14:57:22.895 -> Found device at address: 0x20 -> :) hello!
+14:57:22.941 -> Found device at address: 0x44
+14:57:22.941 -> Found device at address: 0x68
+14:57:22.941 -> Found device at address: 0x7C
+
+Solution:
+The Expander Address is 0x20
+The I2C pins on the ESP32 are 23 and 22
+
+Try to send: 224
+
+https://www.seeedstudio.com/blog/2019/12/13/how-to-generate-pcb-gerber-files-from-cadence-allegro-orcad/
+
+https://community.cadence.com/cadence_technology_forums/pcb-design/f/pcb-editor-skill/43260/import-gerbers-from-altium-to-pcb-editor-16-6
+
+https://www.altium.com/solutions/academic-programs/education-programs
+
+
+In the lab try:
+1. Instead of setting LOW for enabling, try setting HIGH
+2. Different expander pins
+3. Try accessing another expander?
+
+Lab 02/03/2023:
+
+1. Tried setting LOW for enabling, left ADE9000 
+2. Tried setting LOW for enabling, right ADE9000 
+3. Tried setting HIGH for enabling, right ADE9000
+
+--Changed Second Byte value from FE to FF
+1. Tried setting LOW for enabling, right ADE9000 
+2. Tried setting HIGH for enabling, right ADE9000 
+3. Tried setting SLOT_RST to 0 - SLOT_RST -> repeated 
+4. Tried setting LOW for enabling, right ADE9000 
+5. Tried setting HIGH for enabling, right ADE9000 
+
+To DO:
+FIRST:
+- See if there is a way to 'ping' the ADE9000s
+- Read the status of the expander pins RIGHT BEFORE doing SPI read (in the ADE9000.cpp)
+- Use the multimeter to see if the VARIAC is even applying any signals.
+1. Write a UART implementation to test faster
+2. Email Taskin with the updates
+3. Play with the RESET Pin
+4. Check Voltage Reading code from the ADE9000
+5. Read from daughter boards
+6. Try three VARIACS
+7. Read the PCB layout, to check for enable pins
+

@@ -88,7 +88,7 @@ void Actuate(char command){ //https://techtutorialsx.com/2018/04/27/esp32-arduin
 // Callback when client writes
 class WriteCallback: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pChar) {
-    std::string value = pChar->setValue(); //Changed to std::string Value
+    String value = pChar->getValue(); //Changed to std::string Value
     Serial.printf("[Server] Received write: %s\n", value.c_str());
     cCharacteristic->indicate();  // Send indication to client
 
@@ -102,10 +102,12 @@ class WriteCallback: public BLECharacteristicCallbacks {
 };
 
 // Timer 2 ISR
+/*
 bool IRAM_ATTR read_ADC(void* timer_arg) {
   data_flag = true;
   return data_flag;
 }
+*/
 
 void led_Flash(uint16_t flashes, uint16_t delaymS)
 {
@@ -223,6 +225,11 @@ void setup()
 
   I2CRTC.begin(I2C_SDA_RTC, I2C_SCL_RTC, 100000);
 
+  if(!rtc.begin(&I2CRTC)) {
+    Serial.println("COulldnt start the darn thing");
+    while (1) {}
+  }
+
   //only used to set the time once
   /*if (rtc.lostPower()) {
     Serial.println("RTC lost power, setting time.");
@@ -230,6 +237,7 @@ void setup()
   }*/
 
   initSDCard();
+  Serial.println("Initializaed SD Card");
 
   DateTime now = rtc.now();
   filePath = fileName(now);
@@ -239,8 +247,9 @@ void setup()
     writeFile(filePath.c_str(), "Energy Data, Time\r\n");
   } else {
     Serial.println("File already exists");
-    file.close();
+    //file.close();
   }
+  Serial.println("Here1");
 
   //Wire.begin(I2C_SDA, I2C_SCL, 100000);
 
@@ -276,6 +285,7 @@ void setup()
   // Initialize Relay Switching Pin
   pinMode(RELAY_PIN, OUTPUT); //https://techtutorialsx.com/2018/04/27/esp32-arduino-bluetooth-classic-controlling-a-relay-remotely/
   digitalWrite(RELAY_PIN, LOW);
+  Serial.println("Here2");
 
   // Initialize Bluetooth for Commands/Data Transfer
   BLEDevice::init("Client_Board");
@@ -297,6 +307,7 @@ void setup()
   cCharacteristic->setCallbacks(new WriteCallback());
   last_cmd = "0";
   dCharacteristic->setValue("None");
+  Serial.println("Here3");
   
   pService->start();
   // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
@@ -307,15 +318,19 @@ void setup()
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
 
+  Serial.println("Here4");
   // Start timer 1
-  ITimer1.setFrequency(0.2, read_ADC);
+  //ITimer1.setFrequency(0.2, read_ADC);
 }
 
 
 std::string energy_values = "Board-CB1,120.0,10.0";
+int i = 0;
 void loop()
 {
-  if(data_flag) {
+  delay(100);
+  i++;
+  if(i > 50) {
     Serial.println("Data Flag Set...");
     /*
     MCP342x::Config status;
@@ -344,10 +359,13 @@ void loop()
     DateTime now = rtc.now();
     int dayOfMonth = now.day();
     int minuteOfHour = now.minute();
-    String hourStr   = (now.hour() < 10 ? "0" : "") + String(now.hour(), DEC);
-    String minuteStr = (now.minute() < 10 ? "0" : "") + String(now.minute(), DEC);
-    String secondStr = (now.second() < 10 ? "0" : "") + String(now.second(), DEC);
+    std::string hourStr   = (now.hour() < 10 ? "0" : "") + std::string(now.hour(), DEC);
+    std::string minuteStr = (now.minute() < 10 ? "0" : "") + std::string(now.minute(), DEC);
+    std::string secondStr = (now.second() < 10 ? "0" : "") + std::string(now.second(), DEC);
     
+    std::string timetest = hourStr + ":" + minuteStr + ":" + secondStr + "\r\n";
+    Serial.println(timetest.c_str());
+
     if (dayOfMonth != lastDay) {
       if (getUsageRatio(sd) > 0.9) {
         Serial.print("erasing");
@@ -359,15 +377,14 @@ void loop()
       writeFile(filePath.c_str(), "Energy Data, Time\r\n");
       lastDay = dayOfMonth;
     }
-
-    String dataSD = energy_values + ", " + hourStr + ":" minuteStr + ":" + secondStr + "\r\n";
-    appendFile(filePath.c_str(), data_SD.c_str());
+    std::string dataSD = energy_values + ", " + hourStr + ":" + minuteStr + ":" + secondStr + "\r\n";
+    appendFile(filePath.c_str(), dataSD.c_str());
     //For testing
     //dummy_value++;
     //dCharacteristic->setValue(&dummy_value, 1);
     dCharacteristic->notify();
     Serial.println(adc);
 
-    data_flag = false;
+    i = 0;
   }
 }
