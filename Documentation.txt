@@ -1,8 +1,17 @@
 Client Board Documentation
 
+Description:
+  The client boards for our project are circuit boards meant to assist in energy monitoring and appliance actuation. The boards are made up of several components, each of which helps in monitoring and managing energy. The top of the board consists of a 120-240VAC circuit with two terminals for connecting the outlet and appliance. Connected to this higher voltage section of the board is an AC/DC converter which supplies 12VDC to the low voltage power supply and relay circuitry. The low voltage power supply steps down the 12VDC to 3.3VDC to power onboard components like the MCU. A relay is attached to the high voltage section to actuate the attached appliance and is controlled by the MCU. Voltage and current sensing are done using a voltage divider and current transformer, which feed data to an onboard ADC which is then used by the MCU. The MCU, an ESP32-WROOM-32UE, acts as the brains for the board and sends data back to the DFA motherboard over Bluetooth, along with receiving actuation commands. The board also utilizes an SD card to store data in emergency scenarios, such as a loss of Bluetooth. 
+
+Function:
+  The client boards serve two purposes in our design; actuating appliances and reading the voltage/current being used by said appliances. Using Bluetooth, the client boards receive commands from the DFA motherboard and use the onboard relay to acuate the connected device. The client boards also take voltage and current readings using a voltage divider and current transformer and report these findings, along with a board ID, to the DFA motherboard over Bluetooth. 
+
+Firmware:
+  This github contains the firmware for the client boards, including the main client board firmware in sd_card_rtc (client_board_sd). The firmware utilizes the BLEDevices library for bluetooth and the MCP3426 library for reading from the ADC. 
+
 Hardware - See Altium Schematic
 
 Software - Include Description
 
 5/28/25
-1. VAN connection of neutral incorrect. Trace between neutral and C10 cut, jumper installed between C10 and R16 to filter offset. (See blue jumper)
+1. VAN connection of neutral incorrect. Neutral grounded and series offset added with 10uF capactior and two 200k ohm resistors in parallel connected to 3.3V and ground. 
