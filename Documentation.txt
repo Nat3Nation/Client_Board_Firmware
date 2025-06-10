@@ -14,4 +14,4 @@ Hardware - See Altium Schematic
 Software - Include Description
 
 5/28/25
-1. VAN connection of neutral incorrect. Neutral grounded and series offset added with 10uF capactior and two 200k ohm resistors in parallel connected to 3.3V and ground. 
+1. VAN connection of neutral incorrect. Neutral grounded and series offset added with 10uF capactior and two 200k ohm resistors in parallel connected to 3.3V and ground. - Corrected offset, but noise needs to be addressed.
